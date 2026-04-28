@@ -1,222 +1,174 @@
-## Overview
-This folder contains the proposal materials and Simulink models for a quarter-car active suspension project. The project studies how a vehicle suspension responds to road disturbances and compares passive and active control strategies.
+# Quarter-Car Suspension Simulations
 
-The underlying quarter-car model includes:
-- **Sprung mass** `m_s = 250 kg` (vehicle body / cabin)
-- **Unsprung mass** `m_u = 40 kg` (wheel / axle assembly)
-- **Suspension spring** `k_s = 15000 N/m`
-- **Tire stiffness** `k_t = 150000 N/m`
-- **Road input** `r(t)` (bump / step / sinusoidal / noise input)
-- **Actuator force** `u(t)` for the active case
+This folder contains three MATLAB/Simulink models for a quarter-car suspension study:
 
-The intended equations are:
+- `passivemodel.slx`
+- `activemodel_final.slx`
+- `combinedmode_final.slx`
 
-\[
-m_s \ddot{x}_s = -k_s(x_s-x_u) - c_s(\dot{x}_s-\dot{x}_u) + u
-\]
+The models compare a passive suspension, an active suspension, and a combined active plus passive suspension using the same basic quarter-car plant.
 
-\[
-m_u \ddot{x}_u = k_s(x_s-x_u) + c_s(\dot{x}_s-\dot{x}_u) - k_t(x_u-r) - u
-\]
+## Model
 
-where `c_s` is the passive damping coefficient.
+The quarter-car model uses:
 
----
+- Sprung mass: `m_s = 250 kg`
+- Unsprung mass: `m_u = 40 kg`
+- Suspension spring stiffness: `k_s = 15000 N/m`
+- Tire stiffness: `k_t = 150000 N/m`
+- Road displacement input: `r(t)`
+- Actuator force for active models: `u(t)`
 
-## Files
+The governing equations are:
 
-### 1. `activemodel01.slx`
-Primary **active suspension** Simulink model.
+```text
+m_s * x_s_ddot = -k_s * (x_s - x_u) - c_s * (x_s_dot - x_u_dot) + u
 
-#### Current setup identified from the model
+m_u * x_u_ddot =  k_s * (x_s - x_u) + c_s * (x_s_dot - x_u_dot)
+                  - k_t * (x_u - r) - u
+```
+
+where:
+
+- `x_s` is body displacement
+- `x_u` is wheel/unsprung displacement
+- `c_s` is the suspension damping coefficient
+- `u = 0` for the passive model
+
+All three models use `VariableStepAuto` from `t = 0` to `t = 10 s`.
+
+## Simulation Files
+
+### `passivemodel.slx`
+
+Baseline passive suspension model.
+
+Current parsed setup:
+
+- `1/ms = 1/250`
+- `1/mu = 1/40`
+- `Spring Coefficient = 15000`
+- `Tire Coefficient = 150000`
+- `Damping Coefficient = 500`
+- No `Kp` or `Kd` actuator controller blocks are connected to the plant
+- Body force sum has spring and damper inputs only
+- Wheel force sum has damper, spring, and tire inputs
+
+Road/disturbance setup:
+
+- Connected road input: `Band-Limited White Noise`
+- Noise covariance: `[1e-4]`
+- Noise sample time: `0.1`
+- Noise seed: `[23341]`
+- `Step`, `Step1`, and `Sine Wave` blocks are present, but the parsed connections show the tire deflection input is driven by the white-noise block.
+
+Outputs visible in scopes:
+
+- `xs` and `xu`
+- `xs dot dot` and `xu dot dot`
+- An RMS-style body acceleration display is built from `xs dot dot`.
+
+### `activemodel_final.slx`
+
+Active suspension model using proportional-derivative body feedback.
+
+Current parsed setup:
+
 - `1/ms = 1/250`
 - `1/mu = 1/40`
 - `Spring Coefficient = 15000`
 - `Tire Coefficient = 150000`
 - `Damping Coefficient = 0`
-- `Kp = -5000`
-- `Kd = -500`
-- Road inputs present in the model:
-  - `Step` with `After = 0.05`
-  - `Step1` with `Time = 1.5`, `After = -0.05`
-  - `Sine Wave` with amplitude `0.02`, frequency `10`
-  - `Band-Limited White Noise`
+- `Kp = -2000`
+- `Kd = -1000`
+- Controller output `u` is added to the body force sum and subtracted from the wheel force sum
 
-#### Purpose
-Use this model as the base for the **hybrid active + passive** design by assigning a nonzero damping coefficient and keeping the active controller enabled.
+Road/disturbance setup:
 
-#### Recommended next change
-Set:
-- `Damping Coefficient = 1000 Ns/m`
+- Connected road input: sum of `Step` and `Step1`
+- `Step`: final value `0.05`
+- `Step1`: time `1.5 s`, final value `-0.05`
+- `Sine Wave` and `Band-Limited White Noise` blocks are present, but the parsed connections show the road input is driven by the two step blocks.
 
-This makes the model more realistic by combining:
-- passive damping
-- active control
+Outputs visible in scopes:
 
----
+- `xs` and `xu`
+- `xs dot dot` and `xu dot dot`
+- An RMS-style body acceleration display is built from `xs dot dot`.
 
-### 2. `passivemodel.slx`
-Baseline **passive suspension** Simulink model.
+### `combinedmode_final.slx`
 
-#### Current setup identified from the model
+Combined active plus passive suspension model.
+
+Current parsed setup:
+
 - `1/ms = 1/250`
 - `1/mu = 1/40`
 - `Spring Coefficient = 15000`
 - `Tire Coefficient = 150000`
-- `Damping Coefficient = 0`
-- `Kp = -5000`
-- `Kd = -500`
-- Road inputs present in the model:
-  - `Step`
-  - `Sine Wave` with amplitude `0.02`, frequency `5`
-  - `Band-Limited White Noise`
+- `Damping Coefficient = 1000`
+- `Kp = -2000`
+- `Kd = -1000`
+- Controller output `u` is added to the body force sum and subtracted from the wheel force sum
 
-#### Important note
-Although this is labeled as the passive model, the parsed block list shows the damping coefficient is also currently set to **0**, so the model should be checked in Simulink and updated before using it as the passive baseline.
+Road/disturbance setup:
 
-#### Recommended passive baseline
-For a proper passive comparison, set:
-- controller force `u = 0`
-- `Damping Coefficient = 1000 Ns/m`
+- Connected road input: `Band-Limited White Noise`
+- Noise covariance: `[1e-4]`
+- Noise sample time: `1`
+- Noise seed: `[23341]`
+- `Step`, `Step1`, and `Sine Wave` blocks are present, but the parsed connections show the tire deflection input is driven by the white-noise block.
+- `Step1` is configured with time `1.3 s` and final value `-0.05`, but it is not the connected road input in the current model.
 
-Use the **same road input** as the active model when comparing results.
+Outputs visible in scopes:
 
----
+- `xs` and `xu`
+- `xs dot dot` and `xu dot dot`
+- An RMS-style body acceleration display is built from `xs dot dot`.
 
-### 3. `activesuspension.slx`
-Earlier active suspension version.
+## Comparison Summary
 
-#### Likely role
-This appears to be an earlier draft of the active suspension model. Keep it as a backup/reference version unless you specifically need to compare revisions.
+| File | Role | Damping `c_s` | Controller | Connected Road Input |
+| --- | --- | ---: | --- | --- |
+| `passivemodel.slx` | Passive baseline | `500` | None | White noise, `Ts = 0.1` |
+| `activemodel_final.slx` | Active-only model | `0` | `Kp = -2000`, `Kd = -1000` | `0.05 m` step plus `-0.05 m` step at `1.5 s` |
+| `combinedmode_final.slx` | Active plus passive model | `1000` | `Kp = -2000`, `Kd = -1000` | White noise, `Ts = 1` |
 
----
+Because the current files do not all use the same connected road input, compare the saved scope behavior carefully. For a direct performance comparison, use the same connected disturbance source in all three models before collecting final results.
 
-### 4. `Final Project Proposal.docx`
-Written proposal for the active suspension project.
+## Suggested Metrics
 
-#### Purpose
-Contains the project overview, significance, modeling approach, and simulation plan.
+Use the following outputs when comparing the models:
 
----
+- Body displacement: `x_s(t)`
+- Wheel displacement: `x_u(t)`
+- Body acceleration: `x_s_ddot(t)`
+- Wheel acceleration: `x_u_ddot(t)`
+- Suspension deflection: `x_s - x_u`
+- Tire deflection: `x_u - r`
+- Actuator force: `u(t)` for the active and combined models
 
-### 5. `Final Project Proposal.key`
-Presentation slides for the project proposal.
+Recommended comfort metric:
 
-#### Purpose
-Use this for presenting the project motivation, model structure, and planned workflow.
+```text
+a_RMS = sqrt((1/T) * integral_0^T x_s_ddot(t)^2 dt)
+```
 
----
+Recommended control-effort metric for active models:
 
-### 6. `active_suspension_diagram.png`
-Labeled diagram of the quarter-car active suspension setup.
+```text
+P_avg = (1/T) * integral_0^T |u(t) * (x_s_dot - x_u_dot)| dt
+```
 
-#### Purpose
-Use in the report or presentation to explain:
-- sprung mass
-- unsprung mass
-- spring and damper
-- tire stiffness
-- road input
-- actuator
-- controller and sensors
+## Recommended Workflow
 
----
-
-## Recommended Model Roles
-To avoid confusion, use the files in the following way:
-
-- **Passive baseline:** `passivemodel.slx`
-- **Final tuned hybrid model:** `activemodel01.slx`
-- **Archive / earlier reference:** `activesuspension.slx`
-
----
-
-## Recommended Comparison Setup
-For the final report/presentation, compare three cases:
-
-### Case A — Passive suspension
-- `u = 0`
-- `c_s = 1000 Ns/m`
-
-### Case B — Active-only suspension
-- controller on
-- `c_s = 0`
-
-### Case C — Hybrid active + passive suspension
-- controller on
-- `c_s = 1000 Ns/m`
-
-Case C should be your **recommended final design** because it balances comfort and actuator effort more realistically.
-
----
-
-## Tuning Standard
-To balance **comfort** and **power consumption**, use the following standard:
-
-### Comfort metric
-Use **RMS body acceleration**
-
-\[
-a_{RMS} = \sqrt{\frac{1}{T}\int_0^T \ddot{x}_s^2(t)\,dt}
-\]
-
-### Power metric
-Use **average actuator power**
-
-\[
-P_{avg} = \frac{1}{T}\int_0^T |u(t)(\dot{x}_s-\dot{x}_u)|\,dt
-\]
-
-### Selection rule
-Choose the damping coefficient that:
-1. keeps RMS body acceleration within **5% of the best comfort case**, and
-2. among those options, uses the **lowest actuator power**.
-
-### Recommended damping value
-For the current model and controller settings, a good engineering choice is:
-
-- **`c_s = 1000 Ns/m`**
-
-This gives a good compromise between:
-- ride comfort
-- control effort
-- realism
-
----
-
-## Outputs to Plot
-For each simulation, plot:
-- **Body displacement** `x_s(t)`
-- **Body acceleration** `xddot_s(t)`
-- **Suspension deflection** `x_s - x_u`
-- **Actuator force** `u(t)`
-
-Optional:
-- **Tire deflection** `x_u - r`
-
----
-
-## Recommended Next Steps
-1. Open `passivemodel.slx` and `activemodel01.slx` in Simulink.
-2. Make sure both models use the **same road input**.
-3. Set the passive damping coefficient to `1000 Ns/m`.
-4. Keep the controller enabled only in the active/hybrid case.
-5. Run passive, active-only, and hybrid comparisons.
-6. Record the outputs listed above.
-7. Use the hybrid result as the final recommended design.
-
----
+1. Open the three `.slx` files in MATLAB/Simulink.
+2. Verify which road source is connected in each model.
+3. For a fair comparison, connect the same road input in all three models.
+4. Run each simulation over `0` to `10 s`.
+5. Compare displacement, acceleration, suspension travel, and actuator effort.
+6. Use `combinedmode_final.slx` as the final active plus passive design case.
 
 ## Software
-These files are intended for **MATLAB / Simulink**.
 
-Recommended toolbox/environment:
-- MATLAB
-- Simulink
-
----
-
-## Notes
-- The current models include several road input blocks, but not all may be connected at once.
-- The passive model should be verified carefully, since its parsed parameters currently show zero damping as well.
-- For a fair comparison, always use the same disturbance signal and simulation time across all cases.
+These files are intended for MATLAB and Simulink.
